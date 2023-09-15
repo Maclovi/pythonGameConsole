@@ -89,7 +89,7 @@ def dijkstra_graph(graph, start):
     parents = None
     processed = []
 
-    find_min_vertex = lambda x: 1
+    def find_min_vertex(x): return 1
 
     node = start
     while node:
