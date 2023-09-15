@@ -1,5 +1,5 @@
 /venv
-test.py
 .idea
+struct_graph.py
 test2.py
 algorithms.py
