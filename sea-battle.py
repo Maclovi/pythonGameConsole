@@ -1,4 +1,5 @@
 from random import shuffle, randint
+from string import ascii_uppercase, digits
 
 
 class Ship:
@@ -18,7 +19,7 @@ class Ship:
         return self._cells[item]
 
     def __setitem__(self, key, value):
-        self._cells[key].is_alive = value
+        self._cells[key] = value
 
     def set_coords(self, x, y):
         if None not in (x, y):
@@ -34,6 +35,12 @@ class Ship:
 
     def get_start_coords(self):
         return self._x, self._y
+
+    @property
+    def get_perimeter_points(self, size=10):
+        row = self.left - (self.left > 0), self.right + (self.right < size)
+        col = self.bottom - (self.bottom > 0), self.up + (self.up < size)
+        return ((i, j) for i in range(*row) for j in range(*col))
 
     @property
     def get_points(self):
@@ -87,7 +94,7 @@ class GamePole:
                     ship = Ship(length_, randint(1, 2), *coords)
                     if self.is_collisions(ship, self._ships):
                         self._ships.append(ship)
-                        self.del_points(ship)
+                        self.del_points(ship, self._free_cells)
                         break
 
     def is_collisions(self, ship, all_ships):
@@ -108,9 +115,11 @@ class GamePole:
     def clear_pole(self, size):
         self._pole = [["." for _ in range(size)] for _ in range(size)]
 
-    def del_points(self, ship):
-        for points in ship.get_points:
-            self._free_cells.remove(points)
+    def del_points(self, ship, link_free_cells):
+        pt = ship.get_perimeter_points
+        overkill = filter(lambda x: x in link_free_cells, pt)
+        for points in overkill:
+            link_free_cells.remove(points)
 
     def update_pole(self):
         self.clear_pole(self._size)
@@ -141,124 +150,186 @@ class GamePole:
 
 
 class SeaBattle:
-    end = "    |    "
-    digits = " ".join(map(str, range(1, 11)))
-    ascii_leterrs = __import__("string").ascii_uppercase
 
     class Abstract:
         shake = False
+        maketrans = str.maketrans(ascii_uppercase[:10], digits)
+        message_out_console = {0: "Промах!", 1: "Вы попали в палубу!",
+                               2: "Вы уничтожили корабль!",
+                               3: "Человек победил!"}
 
         def __init__(self):
             self.pole = GamePole()
             self.pole.init()
 
-            self.matrix = self.pole._pole
             self.ships = self.pole._ships
+            self.matrix = self.pole._pole
             self.total_ships = len(self.ships)
+            self.other_ships = []
+            self.open_cells = []
             self.free_cells = self.pole.generate_free_cells(shake=self.shake)
 
-        def checker_ships(self, point, other_obj):
+        def __len__(self):
+            return self.total_ships
+
+        def main_logics(self, point, other_obj):
             all_ships = other_obj.ships
             for ship in all_ships:
                 if self.logic_killer_deck(point, ship):
                     if not ship.count_alive:
                         if self.logic_killer_ship(other_obj):
-                            return "Вы победили!"
-                        return "Вы уничтожили корабль!"
-                    return "Вы попали в палубу!"
-            return "Промах!"
+                            return 3
+                        return 2
+                    return 1
+            return 0
 
         def logic_killer_deck(self, point, ship):
-            if point in ship.get_points:
-                ship.count_alive -= 1
-                return True
+            for i, in_point in enumerate(ship.get_points):
+                if point == in_point:
+                    ship.count_alive -= 1
+                    ship._is_move = False
+                    ship[i] = 2
+                    return True
 
         def logic_killer_ship(self, other_obj):
             other_obj.total_ships -= 1
             return not other_obj.total_ships
 
+        def add_killed_ships(self, points):
+            for point in points:
+                self.open_cells.append(point)
+
+        def handler_kill_ship(self, ships):
+            for ship in ships:
+                if not (ship in self.other_ships or ship.count_alive):
+                    self.other_ships.append(ship)
+
+                    self.pole.del_points(ship, self.free_cells)
+                    self.add_killed_ships(ship.get_perimeter_points)
+
     class Player(Abstract):
         shake = False
 
-        def action(self, obj):
-            point = self.handler_points()
-            self.checker_ships(point, obj)
+        @staticmethod
+        def handler(func):
+            def wrapper(instance, *args, **kwargs):
+                txt = ""
+                point = func(instance, *args, **kwargs)
+                point = point.translate(instance.maketrans)
 
-        def handler_points(self, txt="Введите координаты"):
-            point = map(int, input(f"{txt} --->: ").replace(" ", ""))
-            point = tuple(point)
+                if (length := len(point)) != 2:
+                    txt = f"Вы ввели неверное количество <{length}>, нужно 2"
+                elif not point.isdigit():
+                    txt = "Вы ввели не числовые координаты"
+                elif not ("00" <= point <= "99"):
+                    txt = "Вы ввели неверные координаты"
+                if not txt:
+                    point = tuple(map(int, point))
+                    if point not in instance.free_cells:
+                        txt = "Эти клетки ужe заняты"
+                if txt:
+                    txt = f"{txt}, повторите попытку"
+                    return getattr(instance, func.__name__)(txt)
 
-            self.valid_length(point)
-            self.valid_index(point)
-            self.valid_has(point)
-            self.free_cells.remove(point)
-            return point
+                return point
 
-        def valid_length(self, point):
-            length = len(point)
-            if length > 2:
-                txt = f"Вы ввели больше данных {length}, нужно 2"
-                self.again_call(txt)
+            return wrapper
 
-        def valid_index(self, point):
-            for x in point:
-                if not (0 <= x < self.pole._size):
-                    txt = "Введены некорректные координаты"
-                    self.again_call(txt)
+        @handler
+        def user_input(self, txt="Введите координаты"):
+            return input(f"{txt} --->: ").replace(" ", "").upper()
 
-        def valid_has(self, point):
-            if point not in self.free_cells:
-                txt = "Нельзя повторяться"
-                self.again_call(txt)
+        def action(self, bot):
+            point = self.user_input()
+            response = self.main_logics(point, bot)
 
-        def again_call(self, txt):
-            self.handler_points(f"{txt}, повторите попытку")
+            self.open_cells.append(point)
+            if response == 2:
+                self.handler_kill_ship(bot.ships)
+
+            # self.free_cells.remove(point)
+
+            message = self.message_out_console.get(response)
+            print(message)
+            return response
 
     class Bot(Abstract):
         shake = True
 
-        def action(self, obj):
-            point = self.handler_points()
-            self.checker_ships(point, obj)
-
-        def handler_points(self):
+        def action(self, player):
             point = self.free_cells.pop()
-            self.free_cells.remove(point)
-            return point
+
+            response = self.main_logics(point, player)
+            self.open_cells.append(point)
+            if response == 2:
+                self.handler_kill_ship(player.ships)
+            return response
 
     def __init__(self):
         self.player = self.Player()
         self.bot = self.Bot()
 
+    def handler_out(self, row_pole, hide=False):
+        maketrans = str.maketrans("23", "XO")
+        row = " ".join(map(str, row_pole)).translate(maketrans)
+        if hide:
+            row = row.replace("1", ".")
+        return row
+
+    def put_open_cells(self, row_pole, index, link_open_lst):
+        for j in range(len(row_pole)):
+            if (index, j) in link_open_lst:
+                if row_pole[j] == ".":
+                    row_pole[j] = 3
+
     def show(self, size=10):
-        end = self.end
-        digits = self.digits
-        ascii_leterrs = self.ascii_leterrs
-        print(f" {digits}{end} {digits}")
+        end = "    |    "
+        ascii_leterrs = ascii_uppercase[:size]
+        row_letters = ascii_leterrs.replace("", " ").strip()
+        print(f"  {row_letters}{end}  {row_letters}")
 
         for i in range(size):
-            print(ascii_leterrs[i], *self.player.pole._pole[i], end=end)
-            print(ascii_leterrs[i], *self.bot.pole._pole[i])
+            bot_pole = self.bot.pole._pole[i]
+            player_pole = self.player.pole._pole[i]
+            self.put_open_cells(bot_pole, i, self.player.open_cells)
+            self.put_open_cells(player_pole, i, self.bot.open_cells)
+
+            print(ascii_leterrs[i], self.handler_out(player_pole), end=end)
+            print(ascii_leterrs[i], self.handler_out(bot_pole, hide=True))
 
     def moves(self):
         self.player.pole.move_ships()
         self.bot.pole.move_ships()
 
     def play(self):
-        while True:
-            self.show()
-            self.moves()
-            input("update: ---> ")
+        start_message = "Добро пожаловать мой друг!\nПомни, чтобы выйти с игры"
+        start_message += " Достаточно нажать одновременно клавиши Ctrl + c\n"
+        start_message += "Приятной игры!"
+        print(start_message)
+
+        try:
+            game_step = 0
+            while self.player and self.bot:
+                self.show()
+                if game_step % 2 == 0:
+                    print("Ходит человек:")
+                    if self.player.action(self.bot):
+                        game_step -= 1
+                else:
+                    print("Ходит компьтер:")
+                    if self.bot.action(self.player):
+                        game_step -= 1
+                game_step += 1
+                self.moves()
+
+            if not self.player:
+                print("Победил компьютер.")
+            raise KeyboardInterrupt
+
+        except KeyboardInterrupt:
+            print("\nДо новых встреч!")
 
 
-s = SeaBattle()
-s.play()
-
-# p = GamePole(10)
-# p.init()
-# while True:
-#     p.show()
-#     print("-------------------")
-#     p.move_ships()
-#     p.show()
-#     input("stop ---> ")
+# if __name__ == "__main__":
+#     s = SeaBattle()
+#     s.play()
