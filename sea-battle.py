@@ -247,10 +247,7 @@ class SeaBattle:
             if response == 2:
                 self.handler_kill_ship(bot.ships)
 
-            # self.free_cells.remove(point)
-
-            message = self.message_out_console.get(response)
-            print(message)
+            print(self.message_out_console.get(response))
             return response
 
     class Bot(Abstract):
@@ -301,26 +298,26 @@ class SeaBattle:
         self.player.pole.move_ships()
         self.bot.pole.move_ships()
 
-    def play(self):
-        start_message = "Добро пожаловать мой друг!\nПомни, чтобы выйти с игры"
-        start_message += " Достаточно нажать одновременно клавиши Ctrl + c\n"
-        start_message += "Приятной игры!"
-        print(start_message)
-
+    def play(self, moves=True):
+        print(
+        	"Добро пожаловать мой друг!\nПомни, чтобы выйти с игры"
+        	" Достаточно нажать одновременно клавиши Ctrl + c\n"
+        	"Приятной игры!"
+        	)
         try:
             game_step = 0
             while self.player and self.bot:
-                self.show()
                 if game_step % 2 == 0:
+                    self.show()
                     print("Ходит человек:")
                     if self.player.action(self.bot):
                         game_step -= 1
                 else:
-                    print("Ходит компьтер:")
                     if self.bot.action(self.player):
                         game_step -= 1
                 game_step += 1
-                self.moves()
+                if moves:
+                	self.moves()
 
             if not self.player:
                 print("Победил компьютер.")
@@ -330,6 +327,6 @@ class SeaBattle:
             print("\nДо новых встреч!")
 
 
-# if __name__ == "__main__":
-#     s = SeaBattle()
-#     s.play()
+if __name__ == "__main__":
+    s = SeaBattle()
+    s.play(moves=True)
