@@ -1,19 +1,18 @@
-class Stack:
+class Deque:
     class Obj:
         def __init__(self, data):
+            self_type = type(self)
             self.data = data
-            self.next = None
-            self.prev = None
+            self.next: self_type | None = None
+            self.prev: self_type | None = None
 
         def __repr__(self):
             return self.data.__repr__()
 
     def __init__(self, *args):
         self.head = self.tail = None
-
-        if args:
-            for elem in args:
-                self.append(elem)
+        for elem in args:
+            self.append(elem)
 
     def append(self, data):
         if self.head is None:
@@ -38,7 +37,7 @@ class Stack:
             start = start.next
 
 
-stack = Stack()
+stack = Deque()
 stack.append(10)
 stack.append(20)
 stack.append(30)
